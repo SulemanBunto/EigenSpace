@@ -1,3 +1,4 @@
+# fourier.py
 import numpy as np
 import os
 import sys
@@ -19,47 +20,55 @@ class FourierTab(QWidget):
     def __init__(self):
         super().__init__()
 
+        # Default domain and Fourier terms
         self.x_min = -np.pi
         self.x_max = np.pi
         self.N_terms = 10
+
+        # Generate x and y arrays
         self.x = np.linspace(self.x_min, self.x_max, 1500)
         self.y_original = np.sin(self.x)
+        self.current_function = "np.sin(x)"  # track the function string
 
+        # Draw & Pan state
         self.draw_mode = False
         self.drawing = False
         self.last_index = None
         self.pan_mode = False
         self.last_pan = None
 
+        # Initialize UI and plots
         self.init_ui()
         self.compute_coefficients()
         self.update_plot()
 
+    # -------------------------
+    # UI setup
+    # -------------------------
     def init_ui(self):
         main_layout = QVBoxLayout()
         self.setLayout(main_layout)
 
-        self.fig = Figure(figsize=(8, 6))
+        # Matplotlib figure
+        self.fig = Figure(figsize=(8,6))
         self.canvas = FigureCanvas(self.fig)
         main_layout.addWidget(self.canvas)
 
         self.ax_wave = self.fig.add_subplot(211)
         self.ax_energy = self.fig.add_subplot(212)
 
+        # Top buttons: zoom, pan, reset
         top_buttons_layout = QHBoxLayout()
         self.zoom_in_btn = QPushButton()
         self.zoom_in_btn.setIcon(QIcon(resource_path("assets/zoom_in.png")))
         self.zoom_in_btn.clicked.connect(lambda: self.zoom(0.5))
-
         self.zoom_out_btn = QPushButton()
         self.zoom_out_btn.setIcon(QIcon(resource_path("assets/zoom_out.png")))
         self.zoom_out_btn.clicked.connect(lambda: self.zoom(2))
-
         self.pan_btn = QPushButton()
         self.pan_btn.setIcon(QIcon(resource_path("assets/pan.png")))
         self.pan_btn.setCheckable(True)
         self.pan_btn.clicked.connect(self.toggle_pan_mode)
-
         self.reset_btn = QPushButton()
         self.reset_btn.setIcon(QIcon(resource_path("assets/reset.png")))
         self.reset_btn.clicked.connect(self.reset_plot)
@@ -70,7 +79,10 @@ class FourierTab(QWidget):
         top_buttons_layout.addWidget(self.reset_btn)
         main_layout.addLayout(top_buttons_layout)
 
+        # Bottom layout: function, draw, slider, limits
         bottom_layout = QVBoxLayout()
+
+        # Function input
         func_layout = QHBoxLayout()
         self.function_input = QLineEdit()
         self.function_input.setPlaceholderText("Example: x**2 + 2*x + 1")
@@ -81,6 +93,7 @@ class FourierTab(QWidget):
         func_layout.addWidget(apply_btn)
         bottom_layout.addLayout(func_layout)
 
+        # Draw button
         draw_layout = QHBoxLayout()
         self.draw_button = QPushButton("Enable Draw Mode")
         self.draw_button.setCheckable(True)
@@ -88,6 +101,7 @@ class FourierTab(QWidget):
         draw_layout.addWidget(self.draw_button)
         bottom_layout.addLayout(draw_layout)
 
+        # Fourier terms slider
         slider_layout = QHBoxLayout()
         slider_layout.addWidget(QLabel("Fourier Terms:"))
         self.slider = QSlider(Qt.Orientation.Horizontal)
@@ -100,6 +114,7 @@ class FourierTab(QWidget):
         slider_layout.addWidget(self.slider_label)
         bottom_layout.addLayout(slider_layout)
 
+        # Domain limits
         domain_layout = QHBoxLayout()
         domain_layout.addWidget(QLabel("x min:"))
         self.xmin_box = QLineEdit(str(self.x_min))
@@ -114,10 +129,12 @@ class FourierTab(QWidget):
 
         main_layout.addLayout(bottom_layout)
 
+        # Mouse events
         self.canvas.mpl_connect("button_press_event", self.on_press)
         self.canvas.mpl_connect("motion_notify_event", self.on_move)
         self.canvas.mpl_connect("button_release_event", self.on_release)
 
+        # Dark theme
         self.setStyleSheet("""
             QWidget { background-color: #1E2A38; color: #FFFFFF; font-family: Arial; font-size: 13px; }
             QLineEdit { background-color: #2A3A50; color: #FFFFFF; border: 1px solid #3A4A5E; border-radius: 3px; padding: 2px; }
@@ -125,9 +142,9 @@ class FourierTab(QWidget):
             QPushButton:hover { background-color: #3A4A6A; }
         """)
 
-    # ===============================
-    # Draw & Pan
-    # ===============================
+    # -------------------------
+    # Draw & Pan methods
+    # -------------------------
     def toggle_draw_mode(self):
         self.draw_mode = self.draw_button.isChecked()
         if self.draw_mode:
@@ -143,26 +160,6 @@ class FourierTab(QWidget):
             self.draw_button.setChecked(False)
             self.draw_button.setText("Enable Draw Mode")
         self.last_pan = None
-
-    def slider_changed(self, value):
-        self.N_terms = value
-        self.slider_label.setText(str(value))
-        self.compute_coefficients()
-        self.update_plot()
-
-    def apply_manual_function(self):
-        text = self.function_input.text()
-        try:
-            x = self.x
-            allowed = {"np": np, "sin": np.sin, "cos": np.cos, "exp": np.exp,
-                       "pi": np.pi, "sign": np.sign, "abs": np.abs, "x": x}
-            y = eval(text, {"__builtins__": {}}, allowed)
-            if isinstance(y, np.ndarray):
-                self.y_original = y
-                self.compute_coefficients()
-                self.update_plot()
-        except Exception as e:
-            print("Invalid function:", e)
 
     def on_press(self, event):
         if event.inaxes != self.ax_wave:
@@ -213,6 +210,9 @@ class FourierTab(QWidget):
             self.ax_wave.lines[0].set_ydata(self.y_original)
         self.canvas.draw_idle()
 
+    # -------------------------
+    # Fourier computation
+    # -------------------------
     def compute_coefficients(self):
         N = self.N_terms
         x = self.x
@@ -236,19 +236,19 @@ class FourierTab(QWidget):
     def update_plot(self):
         self.ax_wave.clear()
         self.ax_energy.clear()
-
         y_fourier = self.compute_fourier()
         self.ax_wave.plot(self.x, self.y_original, color="#FFA500")
         self.ax_wave.plot(self.x, y_fourier, linestyle="--", color="#00FFFF")
         self.ax_wave.set_title("Function vs Fourier Approximation")
-
         energy = self.a**2 + self.b**2
         self.ax_energy.bar(np.arange(len(energy)), energy, color="#4CAF50")
         self.ax_energy.set_title("Energy Spectrum")
-
         self.fig.tight_layout()
         self.canvas.draw()
 
+    # -------------------------
+    # Zoom / Limits / Reset / Slider
+    # -------------------------
     def zoom(self, factor):
         for ax in [self.ax_wave, self.ax_energy]:
             xlim = ax.get_xlim()
@@ -265,16 +265,55 @@ class FourierTab(QWidget):
         try:
             xmin = float(self.xmin_box.text())
             xmax = float(self.xmax_box.text())
+            self.x_min = xmin
+            self.x_max = xmax
             self.x = np.linspace(xmin, xmax, 1500)
+            # Recompute function for new limits
+            self.update_function_after_limits()
             self.compute_coefficients()
             self.update_plot()
         except:
             print("Invalid limits")
 
+    def update_function_after_limits(self):
+        try:
+            x = self.x
+            allowed = {"np": np, "sin": np.sin, "cos": np.cos, "exp": np.exp,
+                       "pi": np.pi, "sign": np.sign, "abs": np.abs, "x": x}
+            y = eval(self.current_function, {"__builtins__": {}}, allowed)
+            if isinstance(y, np.ndarray):
+                self.y_original = y
+        except:
+            self.y_original = np.sin(self.x)
+
+    def apply_manual_function(self):
+        text = self.function_input.text()
+        if not text.strip():
+            return
+        try:
+            x = self.x
+            allowed = {"np": np, "sin": np.sin, "cos": np.cos, "exp": np.exp,
+                       "pi": np.pi, "sign": np.sign, "abs": np.abs, "x": x}
+            y = eval(text, {"__builtins__": {}}, allowed)
+            if isinstance(y, np.ndarray):
+                self.y_original = y
+                self.current_function = text  # store current function
+                self.compute_coefficients()
+                self.update_plot()
+        except Exception as e:
+            print("Invalid function:", e)
+
     def reset_plot(self):
         self.x = np.linspace(self.x_min, self.x_max, 1500)
         self.y_original = np.sin(self.x)
+        self.current_function = "np.sin(x)"
         self.N_terms = 10
         self.slider.setValue(self.N_terms)
+        self.compute_coefficients()
+        self.update_plot()
+
+    def slider_changed(self, value):
+        self.N_terms = value
+        self.slider_label.setText(str(value))
         self.compute_coefficients()
         self.update_plot()
